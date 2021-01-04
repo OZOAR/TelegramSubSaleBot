@@ -18,6 +18,10 @@ from settings import SQLITE_DB_NAME
 # date TEXT,
 # owner INTEGER)
 
+# qiwi_params (
+# id INTEGER PRIMARY KEY,
+# qiwi_account TEXT,
+# qiwi_token TEXT)
 
 def create_connection():
     conn = None
@@ -28,28 +32,32 @@ def create_connection():
         print(e)
     return conn
 
-def get_table_name(table_id):
+
+def get_subs_table_name(table_id):
     table_id = str(table_id)
-    a = {'1': 'netflix', '2': 'netflix_hd', '3': 'disney'}
-    return a[table_id]
+    data = {'1': 'netflix', '2': 'netflix_hd', '3': 'disney'}
+    return data[table_id]
+
+
+def get_qiwi_param_name(param_id):
+    param_id = str(param_id)
+    data = {'1': 'qiwi_account', '2': 'qiwi_token'}
+    return data[param_id]
 
 
 def db_create(conn):
     try:
         cursor = conn.cursor()
         # cursor.execute("INSERT INTO netflix(id, login, password, date, owner) SELECT id, login, password, date, status FROM netflix_orig;")
-
-        # cursor.execute("SELECT * FROM users")
-        # print(cursor.fetchall())
-        cursor.execute('SELECT * FROM netflix WHERE owner=1478376263')
-        print(cursor.fetchone())
+        cursor.execute("SELECT * FROM qiwi_params")
+        print(cursor.fetchall())
+        # cursor.execute('SELECT * FROM netflix WHERE owner=1478376263')
+        # print(cursor.fetchone())
         # cursor.execute("DROP TABLE users")
-        # cursor.execute("""CREATE TABLE IF NOT EXISTS disney (
-        # id INTEGER PRIMARY KEY AUTOINCREMENT,
-        # login TEXT,
-        # password TEXT,
-        # date TEXT,
-        # owner INTEGER)""")
+        # cursor.execute("""CREATE TABLE IF NOT EXISTS qiwi_params (
+        # id INTEGER PRIMARY KEY,
+        # qiwi_account TEXT,
+        # qiwi_token TEXT)""")
         cursor.close()
     except Exception as e:
         print(e)
@@ -88,6 +96,7 @@ def update_user_token(conn, tg_id, token):
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET token=" + token + " WHERE tg_id =" + str(tg_id))
         conn.commit()
+        print(cursor.execute("SELECT * FROM users WHERE tg_id = " + str(tg_id)).fetchone())
     except Exception as e:
         print(e)
 
@@ -122,7 +131,7 @@ def credit_user_account(conn, user_tg_id, new_balance, token):
 
 
 def get_stock_sub(conn, table_id):
-    table_name = get_table_name(table_id)
+    table_name = get_subs_table_name(table_id)
     try:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM ' + table_name + ' WHERE owner = 0')
@@ -141,9 +150,10 @@ def pay_for_sub(conn, tg_id, price):
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE tg_id=' + str(tg_id))
         result = list(cursor.fetchone())
+        print(f'result, selected user: {result}')
         user_balance = result[5]
         new_balance = user_balance - price
-        print(result, new_balance)
+        print('new_balance_afrer_add_money: ', new_balance)
         if new_balance >= 0:
             cursor.execute('UPDATE users SET balance = ' + str(new_balance) + ' WHERE tg_id =' + str(tg_id))
             conn.commit()
@@ -157,13 +167,12 @@ def pay_for_sub(conn, tg_id, price):
 
 
 def give_sub(conn, table_id, sub, tg_id):
-    table_name = get_table_name(table_id)
+    table_name = get_subs_table_name(table_id)
     today_date = date.today().strftime("%d/%m/%Y")
     try:
         cursor = conn.cursor()
         cursor.execute('UPDATE ' + table_name + ' SET date = ' + today_date + ', owner = ' + str(tg_id) +
                        ' WHERE id =' + str(sub[0]))
-        # print('UPDATE users SET balance = ' + str(user_blance) + ' WHERE id =' + str(user_tg_id))
         conn.commit()
         return True
     except Exception as e:
@@ -171,7 +180,7 @@ def give_sub(conn, table_id, sub, tg_id):
 
 
 def db_add_sub(conn, login, password, table_id, owner=0):
-    table_name = get_table_name(table_id)
+    table_name = get_subs_table_name(table_id)
     today_date = date.today().strftime("%d/%m/%Y")
     try:
         cursor = conn.cursor()
@@ -185,7 +194,7 @@ def db_add_sub(conn, login, password, table_id, owner=0):
 
 
 def db_select_subs(conn, table_id):
-    table_name = get_table_name(table_id)
+    table_name = get_subs_table_name(table_id)
     # print(sub)
     try:
         cursor = conn.cursor()
@@ -200,7 +209,7 @@ def db_select_subs(conn, table_id):
 def db_delete_sub(conn, table_id, sub_id):
     if not sub_id.isdigit():
         return False
-    table_name = get_table_name(table_id)
+    table_name = get_subs_table_name(table_id)
     try:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM ' + table_name + ' WHERE id=' + str(sub_id))
@@ -215,10 +224,47 @@ def db_delete_sub(conn, table_id, sub_id):
         return False
 
 
+def update_qiwi_params(conn, param_id, param_value):
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f'UPDATE qiwi_params SET {get_qiwi_param_name(param_id)} = {param_value} WHERE id = 1')
+        conn.commit()
+        return True
+    except Exception as e:
+        print(e)
+        return False
 
 
-# conn = create_connection()
-# print(db_create(conn))
+def get_qiwi_data(conn):
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM qiwi_params')
+        qiwi_params = list(cursor.fetchone())
+        if qiwi_params[1][0] != '+':
+            qiwi_acc = qiwi_params[1]
+            correct_qiwi_acc = qiwi_acc[:0] + '+' + qiwi_acc[0:]
+            qiwi_params[1] = correct_qiwi_acc
+        conn.close()
+        return qiwi_params
+    except Exception as e:
+        print(e)
+        return False
+
+
+def select_all_users(conn):
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users')
+        users = cursor.fetchall()
+        conn.close()
+        return users
+    except Exception as e:
+        print(e)
+        return False
+
+
+# print(get_qiwi_data(conn))
+
 # db_add_sub(conn,'newacc@gmail.com','12345678','1')
 # db_add_sub(conn,'rigstat@gmail.com','12345678','1')
 # db_add_sub(conn,'vadim@gmail.com','12345678','1')
